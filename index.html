@@ -40,7 +40,7 @@
             <div class="inline-flex items-center justify-center p-3 bg-blue-100 text-blue-600 rounded-full mb-4">
                 <i data-lucide="zap" class="w-8 h-8"></i>
             </div>
-            <h1 class="text-3xl font-bold text-slate-900 mb-2">Direct Print Resi (Bypass Dialog)</h1>
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">Direct Print Resi</h1>
             <p class="text-slate-600">Langsung cetak ke Bluetooth tanpa lewat menu sistem Android.</p>
         </header>
 
@@ -58,19 +58,30 @@
                     <p id="bt-device-name" class="text-xs font-bold text-blue-600 hidden"></p>
                 </div>
             </div>
-            <div class="w-full sm:w-auto flex gap-2">
+            <!-- Area Tombol Bluetooth -->
+            <div class="w-full sm:w-auto flex flex-wrap gap-2">
+                <!-- Tombol Sambungkan -->
                 <button id="bt-connect-btn" onclick="connectBluetooth()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 shadow-md">
                     <i data-lucide="search" class="w-4 h-4"></i> Sambungkan
                 </button>
-                <button id="bt-disconnect-btn" onclick="disconnectBluetooth()" class="hidden w-full sm:w-auto bg-red-100 hover:bg-red-200 text-red-700 px-5 py-2.5 rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
+                
+                <!-- Tombol Test Print (Tersembunyi awal) -->
+                <button id="bt-test-btn" onclick="testPrinter()" class="hidden w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors items-center justify-center gap-2 shadow-md">
+                    <i data-lucide="file-check-2" class="w-4 h-4"></i> Test Print
+                </button>
+
+                <!-- Tombol Putuskan (Tersembunyi awal) -->
+                <button id="bt-disconnect-btn" onclick="disconnectBluetooth()" class="hidden w-full sm:w-auto bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2.5 rounded-xl font-medium transition-colors items-center justify-center gap-2">
                     <i data-lucide="bluetooth-off" class="w-4 h-4"></i> Putuskan
                 </button>
             </div>
         </div>
 
-        <div id="bt-warning" class="hidden mb-6 bg-yellow-50 border border-yellow-200 p-4 rounded-xl text-sm text-yellow-800 flex gap-3 items-start">
-            <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 shrink-0 mt-0.5"></i>
-            <div>Browser ini tidak mendukung Web Bluetooth (gunakan Chrome/Edge di Android/PC).</div>
+        <div id="bt-warning" class="hidden mb-6 bg-yellow-50 border border-yellow-200 p-4 rounded-xl text-sm text-yellow-800 flex flex-col gap-2">
+            <div class="flex gap-3 items-start">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 shrink-0 mt-0.5"></i>
+                <div id="bt-warning-text">Browser atau lingkungan ini tidak mendukung Web Bluetooth (gunakan Chrome/Edge di Android/PC).</div>
+            </div>
         </div>
 
         <!-- Area Upload -->
@@ -129,14 +140,19 @@
     <script>
         lucide.createIcons();
 
-        // Cek dukungan Bluetooth
+        // Cek dukungan Bluetooth dan Secure Context
+        const warningBox = document.getElementById('bt-warning');
+        const warningText = document.getElementById('bt-warning-text');
+        
         if (!navigator.bluetooth) {
-            document.getElementById('bt-warning').classList.remove('hidden');
-            document.getElementById('bt-connect-btn').disabled = true;
+            warningBox.classList.remove('hidden');
+        } else if (!window.isSecureContext) {
+            warningBox.classList.remove('hidden');
+            warningText.innerHTML = "<strong>Perhatian:</strong> Web Bluetooth memerlukan koneksi yang aman (HTTPS). Silakan upload aplikasi ini ke GitHub Pages atau hosting dengan SSL untuk dapat menggunakan Bluetooth.";
         }
 
         // ==========================================
-        // BLUETOOTH & DIRECT PRINT LOGIC (INTI PERUBAHAN)
+        // BLUETOOTH & DIRECT PRINT LOGIC
         // ==========================================
         let btDevice = null;
         let btCharacteristic = null;
@@ -180,7 +196,13 @@
             } catch (error) {
                 console.error(error);
                 updateBluetoothUI('disconnected');
-                if(error.name !== 'NotFoundError') alert("Gagal menyambung: " + error.message);
+                
+                // Menangani error Security khusus untuk lingkungan iframe atau non-HTTPS
+                if (error.name === 'SecurityError') {
+                    alert("Akses Bluetooth Ditolak!\n\nHal ini biasanya terjadi karena Anda membuka aplikasi ini di dalam jendela preview, iframe, atau tanpa koneksi aman (HTTPS). \n\nSolusi: Silakan simpan file HTML ini dan upload ke GitHub Pages Anda, lalu buka tautan GitHub Pages tersebut di tab baru Chrome Android.");
+                } else if (error.name !== 'NotFoundError') {
+                    alert("Gagal menyambung: " + error.message);
+                }
             }
         }
 
@@ -200,6 +222,10 @@
             const iconBg = document.getElementById('bt-icon-bg');
             const icon = document.getElementById('bt-icon');
             
+            const connectBtn = document.getElementById('bt-connect-btn');
+            const disconnectBtn = document.getElementById('bt-disconnect-btn');
+            const testBtn = document.getElementById('bt-test-btn');
+            
             if (state === 'connecting') {
                 status.innerHTML = '<span class="text-yellow-600">Menyambungkan...</span>';
                 icon.classList.add('animate-pulse');
@@ -207,23 +233,66 @@
                 status.innerHTML = '<span class="text-green-600 font-bold">Siap Cetak!</span>';
                 nameEl.textContent = name;
                 nameEl.classList.remove('hidden');
+                
                 iconBg.classList.replace('bg-slate-100', 'bg-green-100');
                 icon.classList.replace('text-slate-500', 'text-green-600');
                 icon.classList.remove('animate-pulse');
-                document.getElementById('bt-connect-btn').classList.add('hidden');
-                document.getElementById('bt-disconnect-btn').classList.remove('hidden');
+                
+                // Toggle Buttons
+                connectBtn.classList.replace('flex', 'hidden');
+                disconnectBtn.classList.replace('hidden', 'flex');
+                testBtn.classList.replace('hidden', 'flex');
+                
             } else {
                 status.innerHTML = '<span class="text-slate-500">Belum Terhubung</span>';
                 nameEl.classList.add('hidden');
+                
                 iconBg.classList.replace('bg-green-100', 'bg-slate-100');
                 icon.classList.replace('text-green-600', 'text-slate-500');
                 icon.classList.remove('animate-pulse');
-                document.getElementById('bt-connect-btn').classList.remove('hidden');
-                document.getElementById('bt-disconnect-btn').classList.add('hidden');
+                
+                // Toggle Buttons
+                connectBtn.classList.replace('hidden', 'flex');
+                disconnectBtn.classList.replace('flex', 'hidden');
+                testBtn.classList.replace('flex', 'hidden');
             }
         }
 
-        // --- ALGORITMA DIRECT PRINT ESC/POS ---
+        // --- FUNGSI TEST PRINTER ---
+        async function testPrinter() {
+            if (!btCharacteristic) {
+                alert("Printer belum terhubung!");
+                return;
+            }
+
+            try {
+                // Teks yang akan di print
+                const text = "\n=== TEST KONEKSI PRINTER ===\nKoneksi Bluetooth Berhasil!\nSistem Cetak Resi Siap Digunakan.\n\n\n\n";
+                
+                // Convert text ke format byte/ASCII
+                const encoder = new TextEncoder();
+                const textBytes = encoder.encode(text);
+                
+                // Siapkan command ESC/POS
+                // 0x1B 0x40 = Initialize printer
+                // 0x1B 0x61 0x01 = Align center
+                const initCmd = new Uint8Array([0x1B, 0x40, 0x1B, 0x61, 0x01]);
+                
+                // Gabungkan byte perintah dan byte teks
+                const buffer = new Uint8Array(initCmd.length + textBytes.length);
+                buffer.set(initCmd, 0);
+                buffer.set(textBytes, initCmd.length);
+
+                // Kirim ke printer (Chunking untuk aman)
+                await sendDataToPrinterInChunks(buffer, () => {});
+                
+            } catch (error) {
+                console.error("Test print gagal:", error);
+                alert("Gagal mengirim test print: " + error.message);
+            }
+        }
+
+        // --- ALGORITMA DIRECT PRINT ESC/POS (UNTUK PDF) ---
         async function startDirectPrint() {
             if (!btCharacteristic) {
                 alert("Sambungkan ke Printer Bluetooth terlebih dahulu dengan tombol di atas!");
@@ -233,7 +302,6 @@
             const canvases = document.getElementById('print-section').querySelectorAll('canvas');
             if (canvases.length === 0) return;
 
-            // Tampilkan UI Loading Overlay
             document.getElementById('printing-overlay').classList.remove('hidden');
             const progressBar = document.getElementById('print-progress-bar');
             const progressText = document.getElementById('print-progress-text');
@@ -242,7 +310,6 @@
                 for (let i = 0; i < canvases.length; i++) {
                     const escposData = generateESCPOSData(canvases[i]);
                     await sendDataToPrinterInChunks(escposData, (progress) => {
-                        // Update progress bar
                         const totalProgress = ((i + progress) / canvases.length) * 100;
                         progressBar.style.width = totalProgress + '%';
                         progressText.innerText = `Mencetak Label ${i+1}/${canvases.length} (${Math.round(totalProgress)}%)`;
@@ -252,7 +319,6 @@
                 console.error(error);
                 alert("Terjadi kesalahan saat mencetak: " + error.message);
             } finally {
-                // Sembunyikan UI Loading
                 setTimeout(() => {
                     document.getElementById('printing-overlay').classList.add('hidden');
                     progressBar.style.width = '0%';
@@ -281,15 +347,13 @@
             // Algoritma Binarization (Mengubah pixel warna jadi bit 1/0)
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < bytesWidth * 8; x++) {
-                    if (x % 8 === 0) buffer.push(0); // Byte baru
+                    if (x % 8 === 0) buffer.push(0); 
 
                     if (x < width) {
                         const i = (y * width + x) * 4;
-                        // Hitung Luminance (kecerahan) dari RGB
                         const lum = (0.299 * imgData[i]) + (0.587 * imgData[i+1]) + (0.114 * imgData[i+2]);
                         const isAlphaTansparent = imgData[i+3] < 128;
                         
-                        // Jika gelap dan tidak transparan, set bit jadi 1 (Hitam)
                         if (lum < 128 && !isAlphaTansparent) {
                             buffer[buffer.length - 1] |= (1 << (7 - (x % 8)));
                         }
@@ -297,21 +361,20 @@
                 }
             }
 
-            // Print dan Feed (Lanjut ke label berikutnya)
-            buffer.push(0x0C); // Form feed
-            buffer.push(0x1B, 0x64, 0x03); // Feed 3 lines (margin)
+            buffer.push(0x0C); 
+            buffer.push(0x1B, 0x64, 0x03); 
 
             return new Uint8Array(buffer);
         }
 
-        // BLE membatasi ukuran data (MTU), kita harus kirim sepotong demi sepotong
+        // BLE membatasi ukuran data, kita kirim sepotong demi sepotong
         async function sendDataToPrinterInChunks(data, progressCallback) {
-            const CHUNK_SIZE = 256; // Aman untuk mayoritas printer BLE
+            const CHUNK_SIZE = 256; 
             for (let i = 0; i < data.length; i += CHUNK_SIZE) {
                 const chunk = data.slice(i, i + CHUNK_SIZE);
                 await btCharacteristic.writeValue(chunk);
                 
-                if (i % (CHUNK_SIZE * 5) === 0) { // Update progress UI
+                if (i % (CHUNK_SIZE * 5) === 0) {
                     progressCallback(i / data.length);
                 }
                 
@@ -320,7 +383,6 @@
             }
             progressCallback(1);
         }
-
 
         // ==========================================
         // LOGIKA BACA PDF & RENDER (PDF.js)
@@ -365,28 +427,21 @@
         async function renderPageForDirectPrint(pdf, pageNumber) {
             const page = await pdf.getPage(pageNumber);
             
-            // --- KUNCI: RESOLUSI PRINTER THERMAL ---
-            // Printer thermal 100mm (seperti Xprinter) umumnya punya kerapatan 203 DPI = sekitar 800 dots (pixel) per baris horizontal.
-            // Kita harus menskalakan ukuran PDF agar pas lebarnya 800 pixel.
-            
             const viewportTemp = page.getViewport({ scale: 1 });
-            const requiredScale = 800 / viewportTemp.width; // Paksa lebar 800 pixel
+            const requiredScale = 800 / viewportTemp.width; 
             const viewport = page.getViewport({ scale: requiredScale });
 
-            // Canvas untuk dicetak ke mesin printer (Tersembunyi)
             const printCanvas = document.createElement('canvas');
-            printCanvas.width = viewport.width; // 800
+            printCanvas.width = viewport.width; 
             printCanvas.height = viewport.height;
             const printCtx = printCanvas.getContext('2d', { willReadFrequently: true });
             
-            // Latar putih (wajib, karena pdf default transparan)
             printCtx.fillStyle = "white";
             printCtx.fillRect(0, 0, printCanvas.width, printCanvas.height);
 
             await page.render({ canvasContext: printCtx, viewport: viewport }).promise;
             document.getElementById('print-section').appendChild(printCanvas);
 
-            // Canvas untuk Preview UI (Kecil)
             const previewCanvas = document.createElement('canvas');
             previewCanvas.width = viewport.width;
             previewCanvas.height = viewport.height;
