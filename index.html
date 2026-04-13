@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cetak Label Marketplace - 150x100mm</title>
+    <!-- Tailwind CSS untuk Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js untuk membaca file PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Sembunyikan area print di layar normal */
+        #print-section {
+            display: none;
+        }
+
+        /* Pengaturan khusus saat mode print berjalan */
+        @media print {
+            @page {
+                /* Set ukuran kertas khusus label thermal 100mm x 150mm (A6) */
+                size: 100mm 150mm;
+                margin: 0;
+            }
+            body {
+                margin: 0;
+                padding: 0;
+                background-color: white;
+            }
+            /* Sembunyikan UI utama */
+            #app-ui {
+                display: none !important;
+            }
+            /* Tampilkan hanya area print */
+            #print-section {
+                display: block !important;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100mm;
+            }
+            .print-page {
+                width: 100mm;
+                height: 150mm;
+                page-break-after: always;
+                page-break-inside: avoid;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                overflow: hidden;
+                margin: 0;
+                padding: 0;
+            }
+            .print-page canvas {
+                max-width: 100%;
+                max-height: 100%;
+                object-fit: contain;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
+
+    <!-- UI Utama Aplikasi -->
+    <div id="app-ui" class="max-w-3xl mx-auto p-4 md:p-8">
+        
+        <!-- Header -->
+        <header class="text-center mb-6">
+            <div class="inline-flex items-center justify-center p-3 bg-blue-100 text-blue-600 rounded-full mb-4">
+                <i data-lucide="printer" class="w-8 h-8"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">Cetak Label Resi Massal</h1>
+            <p class="text-slate-600">Format Thermal 150x100 mm dengan Web Bluetooth</p>
+        </header>
+
+        <!-- PANEL BLUETOOTH (BARU) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div id="bt-icon-bg" class="bg-slate-100 p-3 rounded-full transition-colors">
+                    <i data-lucide="bluetooth" id="bt-icon" class="text-slate-500 w-6 h-6 transition-colors"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-800 text-sm md:text-base">Koneksi Printer Bluetooth</h3>
+                    <p class="text-xs md:text-sm text-slate-500">
+                        Status: <span id="bt-status" class="text-slate-500 font-medium">Belum Terhubung</span>
+                    </p>
+                    <p id="bt-device-name" class="text-xs font-semibold text-blue-600 hidden"></p>
+                </div>
+            </div>
+            <div class="w-full sm:w-auto flex gap-2">
+                <button id="bt-connect-btn" onclick="connectBluetooth()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                    <i data-lucide="search" class="w-4 h-4"></i> Cari Printer
+                </button>
+                <button id="bt-disconnect-btn" onclick="disconnectBluetooth()" class="hidden w-full sm:w-auto bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                    <i data-lucide="bluetooth-off" class="w-4 h-4"></i> Putuskan
+                </button>
+            </div>
+        </div>
+
+        <!-- Peringatan Web Bluetooth -->
+        <div id="bt-warning" class="hidden mb-6 bg-yellow-50 border border-yellow-200 p-4 rounded-xl text-sm text-yellow-800 flex gap-3 items-start">
+            <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 shrink-0 mt-0.5"></i>
+            <div>
+                <strong>Perhatian:</strong> Browser ini tidak mendukung Web Bluetooth API (Mungkin Anda menggunakan iPhone/Safari atau browser non-Chrome). Anda tetap bisa mencetak menggunakan tombol <b>Cetak via Sistem</b>.
+            </div>
+        </div>
+
+        <!-- Area Upload -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+            <div class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-8 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer relative" id="drop-zone">
+                <i data-lucide="files" class="w-10 h-10 text-slate-400 mb-3"></i>
+                <h3 class="text-lg font-semibold mb-1 text-center">Pilih atau Tarik Banyak File PDF</h3>
+                <p class="text-sm text-slate-500 text-center mb-4">Bisa pilih lebih dari 1 file sekaligus.</p>
+                
+                <!-- Input File Asli (multiple = true) -->
+                <input type="file" id="pdf-upload" accept="application/pdf" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                
+                <button class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                    Pilih File PDF
+                </button>
+            </div>
+            
+            <!-- Daftar File Terpilih -->
+            <div id="file-list-container" class="hidden mt-4">
+                <h4 class="text-sm font-semibold text-slate-700 mb-2 border-b pb-1">Daftar File Diproses:</h4>
+                <ul id="file-list" class="space-y-2 max-h-40 overflow-y-auto pr-2">
+                    <!-- Item list akan dibuat via JS -->
+                </ul>
+                <div class="mt-3 flex justify-between items-center text-sm bg-blue-50 p-2 rounded-lg text-blue-800 border border-blue-100">
+                    <span id="total-files-display" class="font-bold">Total: 0 file</span>
+                    <span id="total-pages-display" class="font-bold">Total: 0 Halaman Cetak</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Indikator Loading -->
+        <div id="loading-indicator" class="hidden flex-col items-center justify-center py-8">
+            <i data-lucide="loader-2" class="w-8 h-8 text-blue-600 animate-spin mb-2"></i>
+            <p id="loading-text" class="text-slate-600 font-medium text-center">Memproses PDF...</p>
+            <!-- Progress Bar -->
+            <div class="w-full max-w-xs bg-slate-200 rounded-full h-2.5 mt-4">
+                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Tombol Aksi & Instruksi -->
+        <div id="action-area" class="hidden">
+            <div class="flex flex-col sm:flex-row gap-4 mb-8">
+                <button onclick="window.print()" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white py-4 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-md text-lg">
+                    <i data-lucide="printer" class="w-6 h-6"></i>
+                    Cetak via Sistem / Bluetooth (Disarankan)
+                </button>
+                <button onclick="resetApp()" class="sm:w-auto bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 py-4 px-6 rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
+                    <i data-lucide="refresh-cw" class="w-5 h-5"></i> Reset
+                </button>
+            </div>
+
+            <!-- Preview UI Layar -->
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800">
+                <i data-lucide="eye" class="w-5 h-5"></i> Preview Label
+            </h3>
+            <div id="screen-preview" class="flex flex-col gap-6 items-center bg-slate-200 p-6 rounded-xl overflow-y-auto max-h-[600px] border border-slate-300 shadow-inner">
+                <!-- Canvas preview akan dimuat di sini -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Area Khusus Print (Disembunyikan di UI, ditampilkan saat diprint) -->
+    <div id="print-section">
+        <!-- Konten Canvas per halaman akan di-generate di sini oleh JS -->
+    </div>
+
+    <script>
+        // Inisialisasi Lucide Icons
+        lucide.createIcons();
+
+        // Cek dukungan Web Bluetooth
+        if (!navigator.bluetooth) {
+            document.getElementById('bt-warning').classList.remove('hidden');
+            document.getElementById('bt-connect-btn').disabled = true;
+            document.getElementById('bt-connect-btn').classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        // Variabel Global Bluetooth
+        let bluetoothDevice = null;
+        let gattServer = null;
+
+        // Fungsi Menyambungkan Bluetooth
+        async function connectBluetooth() {
+            try {
+                // Meminta perangkat Bluetooth (Filter untuk perangkat BLE secara umum)
+                console.log('Meminta perangkat Bluetooth...');
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    // Optional services biasanya diperlukan untuk berkomunikasi
+                    optionalServices: [
+                        '000018f0-0000-1000-8000-00805f9b34fb', // Standard BLE Printer
+                        '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Standard Serial over BLE
+                        'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
+                    ]
+                });
+
+                bluetoothDevice = device;
+                
+                // Event listener jika perangkat tiba-tiba terputus
+                bluetoothDevice.addEventListener('gattserverdisconnected', handleBluetoothDisconnect);
+
+                // Ubah UI menjadi status menyambungkan
+                updateBluetoothUI('connecting', device.name);
+
+                // Koneksi ke GATT Server
+                console.log('Menyambungkan ke GATT Server...');
+                gattServer = await device.gatt.connect();
+                
+                // Ubah UI menjadi sukses
+                updateBluetoothUI('connected', device.name);
+                console.log('Berhasil terhubung ke', device.name);
+
+            } catch (error) {
+                console.error("Gagal menyambungkan Bluetooth: ", error);
+                if (error.name === 'NotFoundError') {
+                    // Pengguna membatalkan dialog
+                    updateBluetoothUI('disconnected');
+                } else {
+                    alert("Gagal menyambungkan: " + error.message);
+                    updateBluetoothUI('disconnected');
+                }
+            }
+        }
+
+        // Fungsi Memutuskan Bluetooth
+        function disconnectBluetooth() {
+            if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+                bluetoothDevice.gatt.disconnect();
+                // handleBluetoothDisconnect akan otomatis terpanggil via event listener
+            }
+        }
+
+        // Handler saat Bluetooth terputus
+        function handleBluetoothDisconnect() {
+            console.log('Bluetooth terputus.');
+            updateBluetoothUI('disconnected');
+            gattServer = null;
+            bluetoothDevice = null;
+        }
+
+        // Fungsi Update Tampilan UI Panel Bluetooth
+        function updateBluetoothUI(state, deviceName = '') {
+            const statusEl = document.getElementById('bt-status');
+            const nameEl = document.getElementById('bt-device-name');
+            const iconBg = document.getElementById('bt-icon-bg');
+            const icon = document.getElementById('bt-icon');
+            const connectBtn = document.getElementById('bt-connect-btn');
+            const disconnectBtn = document.getElementById('bt-disconnect-btn');
+
+            if (state === 'connecting') {
+                statusEl.innerHTML = '<span class="text-yellow-600 font-medium">Menyambungkan...</span>';
+                nameEl.classList.add('hidden');
+                icon.classList.add('animate-pulse');
+            } 
+            else if (state === 'connected') {
+                statusEl.innerHTML = '<span class="text-green-600 font-bold">Terhubung</span>';
+                nameEl.textContent = deviceName || 'Printer Bluetooth Tidak Diketahui';
+                nameEl.classList.remove('hidden');
+                
+                iconBg.classList.replace('bg-slate-100', 'bg-green-100');
+                icon.classList.replace('text-slate-500', 'text-green-600');
+                icon.classList.remove('animate-pulse');
+
+                connectBtn.classList.add('hidden');
+                disconnectBtn.classList.remove('hidden');
+            } 
+            else if (state === 'disconnected') {
+                statusEl.innerHTML = '<span class="text-slate-500 font-medium">Belum Terhubung</span>';
+                nameEl.classList.add('hidden');
+                
+                iconBg.classList.replace('bg-green-100', 'bg-slate-100');
+                icon.classList.replace('text-green-600', 'text-slate-500');
+                icon.classList.remove('animate-pulse');
+
+                connectBtn.classList.remove('hidden');
+                disconnectBtn.classList.add('hidden');
+            }
+        }
+
+        // ==========================================
+        // LOGIKA PDF (TETAP SAMA SEPERTI SEBELUMNYA)
+        // ==========================================
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const fileInput = document.getElementById('pdf-upload');
+        const dropZone = document.getElementById('drop-zone');
+        const fileListContainer = document.getElementById('file-list-container');
+        const fileList = document.getElementById('file-list');
+        const totalFilesDisplay = document.getElementById('total-files-display');
+        const totalPagesDisplay = document.getElementById('total-pages-display');
+        
+        const actionArea = document.getElementById('action-area');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const loadingText = document.getElementById('loading-text');
+        const progressBar = document.getElementById('progress-bar');
+        
+        const screenPreview = document.getElementById('screen-preview');
+        const printSection = document.getElementById('print-section');
+
+        let globalTotalPages = 0;
+
+        fileInput.addEventListener('change', handleFilesSelect);
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('bg-blue-50', 'border-blue-400');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('bg-blue-50', 'border-blue-400');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('bg-blue-50', 'border-blue-400');
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                handleFilesSelect({ target: fileInput });
+            }
+        });
+
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(new Uint8Array(reader.result));
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        async function handleFilesSelect(event) {
+            const files = Array.from(event.target.files).filter(file => file.type === "application/pdf");
+            
+            if (files.length === 0) {
+                alert("Mohon pilih setidaknya satu file PDF.");
+                return;
+            }
+
+            dropZone.classList.add('hidden');
+            fileListContainer.classList.remove('hidden');
+            loadingIndicator.classList.remove('hidden');
+            actionArea.classList.add('hidden');
+            
+            fileList.innerHTML = '';
+            screenPreview.innerHTML = '';
+            printSection.innerHTML = '';
+            globalTotalPages = 0;
+            totalFilesDisplay.textContent = `Total: ${files.length} file`;
+            progressBar.style.width = '0%';
+
+            let filesProcessed = 0;
+
+            try {
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    loadingText.textContent = `Memproses file ${i + 1} dari ${files.length} (${file.name})...`;
+                    
+                    const li = document.createElement('li');
+                    li.className = "flex items-center gap-2 text-sm bg-white p-2 rounded border border-slate-100 shadow-sm";
+                    li.innerHTML = `<i data-lucide="file-text" class="text-slate-400 w-4 h-4"></i> <span class="truncate">${file.name}</span>`;
+                    fileList.appendChild(li);
+                    lucide.createIcons({root: li});
+
+                    const typedarray = await readFileAsArrayBuffer(file);
+                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                    
+                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                        await renderPage(pdf, pageNum);
+                        globalTotalPages++;
+                        totalPagesDisplay.textContent = `Total: ${globalTotalPages} Halaman Cetak`;
+                    }
+
+                    filesProcessed++;
+                    const progress = (filesProcessed / files.length) * 100;
+                    progressBar.style.width = `${progress}%`;
+                }
+
+                loadingIndicator.classList.add('hidden');
+                actionArea.classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Error memproses PDF: ", error);
+                alert("Terjadi kesalahan saat membaca file PDF. Pastikan file tidak rusak.");
+                loadingIndicator.classList.add('hidden');
+                dropZone.classList.remove('hidden');
+            }
+        }
+
+        async function renderPage(pdf, pageNumber) {
+            const page = await pdf.getPage(pageNumber);
+            
+            const scale = 2.5; 
+            const viewport = page.getViewport({ scale: scale });
+
+            const printCanvas = document.createElement('canvas');
+            const printContext = printCanvas.getContext('2d');
+            printCanvas.height = viewport.height;
+            printCanvas.width = viewport.width;
+
+            const previewCanvas = document.createElement('canvas');
+            const previewContext = previewCanvas.getContext('2d');
+            previewCanvas.height = viewport.height;
+            previewCanvas.width = viewport.width;
+            
+            previewCanvas.className = "bg-white shadow-md w-full max-w-[378px] h-auto object-contain border border-slate-200"; 
+
+            const renderContext = {
+                canvasContext: printContext,
+                viewport: viewport
+            };
+
+            await page.render(renderContext).promise;
+            previewContext.drawImage(printCanvas, 0, 0);
+
+            const previewWrapper = document.createElement('div');
+            previewWrapper.className = "relative flex flex-col items-center w-full";
+            previewWrapper.appendChild(previewCanvas);
+            
+            const pageLabel = document.createElement('div');
+            pageLabel.className = "absolute top-2 right-2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-70";
+            pageLabel.textContent = `Hal ${globalTotalPages + 1}`;
+            previewWrapper.appendChild(pageLabel);
+
+            screenPreview.appendChild(previewWrapper);
+
+            const printPageDiv = document.createElement('div');
+            printPageDiv.className = 'print-page';
+            printPageDiv.appendChild(printCanvas);
+            printSection.appendChild(printPageDiv);
+        }
+
+        function resetApp() {
+            fileInput.value = '';
+            dropZone.classList.remove('hidden');
+            fileListContainer.classList.add('hidden');
+            actionArea.classList.add('hidden');
+            loadingIndicator.classList.add('hidden');
+            fileList.innerHTML = '';
+            screenPreview.innerHTML = '';
+            printSection.innerHTML = '';
+            globalTotalPages = 0;
+        }
+    </script>
+</body>
+</html>
