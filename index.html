@@ -50,7 +50,7 @@
     <div id="printing-overlay" class="hidden fixed inset-0 bg-slate-900/90 z-50 flex flex-col items-center justify-center text-white backdrop-blur-sm">
         <i data-lucide="printer" class="w-16 h-16 animate-pulse-fast mb-4 text-blue-400"></i>
         <h2 class="text-2xl font-bold mb-2">Sedang Mencetak...</h2>
-        <p class="text-slate-300 text-center max-w-sm mb-4">Mengirim data TSPL ke Printer Bluetooth. <br>Mohon tunggu proses selesai.</p>
+        <p class="text-slate-300 text-center max-w-sm mb-4">Mengirim data ke Printer Bluetooth. <br>Harap tunggu agar memori printer tidak error.</p>
         <div class="w-64 bg-slate-700 rounded-full h-3">
             <div id="print-progress-bar" class="bg-blue-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
         </div>
@@ -65,7 +65,7 @@
                 <i data-lucide="zap" class="w-8 h-8"></i>
             </div>
             <h1 class="text-3xl font-bold text-slate-900 mb-2">Direct Print Resi (TSPL)</h1>
-            <p class="text-slate-600">Terhubung langsung ke Printer Label Thermal.</p>
+            <p class="text-slate-600">Aplikasi Cetak Label Bluetooth Super Stabil.</p>
         </header>
 
         <!-- PANEL BLUETOOTH -->
@@ -103,8 +103,8 @@
             <div class="mt-4 pt-4 border-t border-slate-100 flex items-center gap-3">
                 <input type="checkbox" id="fix-bg-checkbox" checked class="w-5 h-5 text-blue-600 rounded border-gray-300 cursor-pointer">
                 <label for="fix-bg-checkbox" class="font-medium text-slate-700 cursor-pointer text-sm">
-                    Koreksi Background Hitam (Reverse Colors)
-                    <span class="block text-slate-400 text-xs font-normal">Membalik warna agar latar jadi putih dan tulisan hitam.</span>
+                    Perbaikan Warna Hitam-Putih
+                    <span class="block text-slate-400 text-xs font-normal">Centang ini jika hasil print sebelumnya berlatar gelap (negatif).</span>
                 </label>
             </div>
         </div>
@@ -217,6 +217,7 @@
                 for (const service of services) {
                     const characteristics = await service.getCharacteristics();
                     for (const char of characteristics) {
+                        // Mencari port yang bisa ditulisi
                         if (char.properties.write || char.properties.writeWithoutResponse) {
                             btCharacteristic = char;
                             break;
@@ -282,21 +283,35 @@
             }
         }
 
-        // --- PENGIRIMAN DATA DENGAN PROGRESS CALLBACK ---
+        // --- PENGIRIMAN DATA DENGAN PROGRESS CALLBACK (JEDA AMAN DIPERBAIKI) ---
         async function sendDataToPrinterInChunks(data, progressCallback) {
-            const CHUNK_SIZE = 256; 
+            // Ukuran aman untuk printer murah agar tidak error (100 byte per kiriman)
+            const CHUNK_SIZE = 100; 
             for (let i = 0; i < data.length; i += CHUNK_SIZE) {
                 const chunk = data.slice(i, i + CHUNK_SIZE);
                 try {
-                    await btCharacteristic.writeValue(chunk);
+                    // Coba metode write yang tersedia
+                    if (btCharacteristic.properties.writeWithoutResponse) {
+                        await btCharacteristic.writeValueWithoutResponse(chunk);
+                    } else {
+                        await btCharacteristic.writeValue(chunk);
+                    }
                 } catch (e) {
                     console.warn("Retrying chunk...", e);
-                    await new Promise(r => setTimeout(r, 20)); 
-                    await btCharacteristic.writeValue(chunk); 
+                    // Jika gagal, beri jeda lama lalu coba lagi
+                    await new Promise(r => setTimeout(r, 50)); 
+                    if (btCharacteristic.properties.writeWithoutResponse) {
+                        await btCharacteristic.writeValueWithoutResponse(chunk);
+                    } else {
+                        await btCharacteristic.writeValue(chunk);
+                    }
                 }
                 
+                // JEDA WAJIB 30ms. Jangan pernah dihapus agar memori printer sanggup memproses data.
+                await new Promise(resolve => setTimeout(resolve, 30));
+
                 // Panggil callback progress untuk mengupdate loading bar
-                if (progressCallback && i % (CHUNK_SIZE * 10) === 0) {
+                if (progressCallback && i % (CHUNK_SIZE * 5) === 0) {
                     progressCallback(i / data.length);
                 }
             }
@@ -312,6 +327,7 @@
                 let tsplCmd = "SIZE 100 mm,150 mm\r\nGAP 2 mm,0\r\nDIRECTION 1\r\nCLS\r\n";
                 tsplCmd += "TEXT 50,50,\"4\",0,1,1,\"=== TEST KONEKSI PRINTER ===\"\r\n";
                 tsplCmd += "TEXT 50,150,\"3\",0,1,1,\"Koneksi Bluetooth Berhasil!\"\r\n";
+                tsplCmd += "TEXT 50,200,\"2\",0,1,1,\"Printer merespons dengan normal.\"\r\n";
                 tsplCmd += "PRINT 1\r\n";
                 
                 const encoder = new TextEncoder();
@@ -331,7 +347,7 @@
             const canvases = document.getElementById('print-section').querySelectorAll('canvas');
             if (canvases.length === 0) return;
 
-            // TAMPILKAN LAYAR LOADING OVERLAY KEMBALI
+            // TAMPILKAN LAYAR LOADING OVERLAY
             document.getElementById('printing-overlay').classList.remove('hidden');
             const progressBar = document.getElementById('print-progress-bar');
             const progressText = document.getElementById('print-progress-text');
@@ -344,6 +360,9 @@
                         progressBar.style.width = totalProgress + '%';
                         progressText.innerText = `Mencetak Label ${i+1}/${canvases.length} (${Math.round(totalProgress)}%)`;
                     });
+                    
+                    // Jeda ekstra 1 detik antar label agar mesin printer menarik kertas dengan sempurna
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             } catch (error) {
                 console.error(error);
@@ -357,7 +376,7 @@
             }
         }
 
-        // --- PEMBENTUKAN BITMAP TSPL (DENGAN REVERSE COLOR COMMAND) ---
+        // --- PEMBENTUKAN BITMAP TSPL (WARNA OTOMATIS) ---
         function generateTSPLBitmap(canvas) {
             const width = canvas.width;
             const height = canvas.height;
@@ -371,7 +390,17 @@
             const headerBytes = encoder.encode(headerStr);
 
             const bitmapData = new Uint8Array(bytesWidth * height);
-            // Default `Uint8Array` adalah 0x00 semua.
+            
+            // Cek apakah opsi Perbaikan Warna di centang
+            const isReverseChecked = document.getElementById('fix-bg-checkbox').checked;
+            
+            // Jika memori printer mendeteksi 0 sebagai Hitam, kita penuhi array dengan 0 (hitam) 
+            // lalu beri angka 1 (putih) di area yang terang.
+            if (isReverseChecked) {
+                bitmapData.fill(0x00); // 0 = Hitam (Background awal Hitam)
+            } else {
+                bitmapData.fill(0x00); // Mode normal (Background awal Putih)
+            }
             
             let byteIndex = 0;
             for (let y = 0; y < height; y++) {
@@ -381,26 +410,30 @@
                         const lum = (0.299 * imgData[i]) + (0.587 * imgData[i+1]) + (0.114 * imgData[i+2]);
                         const isTransparent = imgData[i+3] < 128;
                         
-                        // LOGIKA ORIGINAL: Gelap = Bit 1. (Terbukti stabil mencetak bentuk objeknya)
-                        if (lum < 128 && !isTransparent) {
+                        if (isReverseChecked) {
+                            // MODE INVERT (Agar Latar Putih, Tulisan Hitam di printer tertentu)
+                            // Jika warna aslinya Terang/Putih, kita set bit jadi 1.
+                            if (lum >= 128 || isTransparent) {
+                                bitmapData[byteIndex] |= (1 << (7 - (x % 8)));
+                            }
+                        } else {
+                            // MODE NORMAL (Agar Latar Putih, Tulisan Hitam di printer normal)
+                            // Jika warna aslinya Gelap/Hitam, kita set bit jadi 1.
+                            if (lum < 128 && !isTransparent) {
+                                bitmapData[byteIndex] |= (1 << (7 - (x % 8)));
+                            }
+                        }
+                    } else {
+                        // Area padding/tepi kosong, pastikan warnanya Putih
+                        if (isReverseChecked) {
                             bitmapData[byteIndex] |= (1 << (7 - (x % 8)));
                         }
                     }
                     if (x % 8 === 7) byteIndex++;
                 }
             }
-
-            // CEK TOGGLE REVERSE DI UI
-            const isReverseChecked = document.getElementById('fix-bg-checkbox').checked;
             
-            let footerStr = "";
-            // Jika dicentang, tambahkan perintah TSPL REVERSE untuk membalik warna dengan aman oleh printer
-            if (isReverseChecked) {
-                footerStr += `\r\nREVERSE 0,0,${width},${height}`;
-            }
-            footerStr += "\r\nPRINT 1\r\n";
-            
-            const footerBytes = encoder.encode(footerStr);
+            const footerBytes = encoder.encode("\r\nPRINT 1\r\n");
 
             const finalBuffer = new Uint8Array(headerBytes.length + bitmapData.length + footerBytes.length);
             finalBuffer.set(headerBytes, 0);
