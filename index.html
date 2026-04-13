@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Direct Print Label 150x100mm</title>
+    <title>Direct Print Label 150x100mm (TSPL)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- PDF.js -->
@@ -13,7 +13,6 @@
 
     <style>
         #print-section { display: none; }
-        /* Animasi Loading Print */
         @keyframes pulse-fast {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -27,7 +26,7 @@
     <div id="printing-overlay" class="hidden fixed inset-0 bg-slate-900/80 z-50 flex flex-col items-center justify-center text-white backdrop-blur-sm">
         <i data-lucide="printer" class="w-16 h-16 animate-pulse-fast mb-4 text-blue-400"></i>
         <h2 class="text-2xl font-bold mb-2">Sedang Mencetak...</h2>
-        <p class="text-slate-300 text-center max-w-sm mb-4">Mengirim data langsung ke Printer Bluetooth. <br>Mohon tunggu, proses ini memakan waktu beberapa detik per label.</p>
+        <p class="text-slate-300 text-center max-w-sm mb-4">Mengirim data TSPL ke Printer Bluetooth. <br>Mohon tunggu proses selesai.</p>
         <div class="w-64 bg-slate-700 rounded-full h-3">
             <div id="print-progress-bar" class="bg-blue-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
         </div>
@@ -40,8 +39,8 @@
             <div class="inline-flex items-center justify-center p-3 bg-blue-100 text-blue-600 rounded-full mb-4">
                 <i data-lucide="zap" class="w-8 h-8"></i>
             </div>
-            <h1 class="text-3xl font-bold text-slate-900 mb-2">Direct Print Resi</h1>
-            <p class="text-slate-600">Langsung cetak ke Bluetooth tanpa lewat menu sistem Android.</p>
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">Direct Print Resi (TSPL)</h1>
+            <p class="text-slate-600">Protokol khusus untuk printer label thermal (Xprinter, Kassen, dll).</p>
         </header>
 
         <!-- PANEL BLUETOOTH -->
@@ -60,17 +59,14 @@
             </div>
             <!-- Area Tombol Bluetooth -->
             <div class="w-full sm:w-auto flex flex-wrap gap-2">
-                <!-- Tombol Sambungkan -->
                 <button id="bt-connect-btn" onclick="connectBluetooth()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 shadow-md">
                     <i data-lucide="search" class="w-4 h-4"></i> Sambungkan
                 </button>
                 
-                <!-- Tombol Test Print (Tersembunyi awal) -->
                 <button id="bt-test-btn" onclick="testPrinter()" class="hidden w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors items-center justify-center gap-2 shadow-md">
                     <i data-lucide="file-check-2" class="w-4 h-4"></i> Test Print
                 </button>
 
-                <!-- Tombol Putuskan (Tersembunyi awal) -->
                 <button id="bt-disconnect-btn" onclick="disconnectBluetooth()" class="hidden w-full sm:w-auto bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2.5 rounded-xl font-medium transition-colors items-center justify-center gap-2">
                     <i data-lucide="bluetooth-off" class="w-4 h-4"></i> Putuskan
                 </button>
@@ -80,7 +76,7 @@
         <div id="bt-warning" class="hidden mb-6 bg-yellow-50 border border-yellow-200 p-4 rounded-xl text-sm text-yellow-800 flex flex-col gap-2">
             <div class="flex gap-3 items-start">
                 <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 shrink-0 mt-0.5"></i>
-                <div id="bt-warning-text">Browser atau lingkungan ini tidak mendukung Web Bluetooth (gunakan Chrome/Edge di Android/PC).</div>
+                <div id="bt-warning-text">Browser atau lingkungan ini tidak mendukung Web Bluetooth. Buka file ini dari GitHub Pages.</div>
             </div>
         </div>
 
@@ -106,22 +102,18 @@
             </div>
         </div>
 
-        <!-- Indikator Loading PDF -->
         <div id="loading-indicator" class="hidden flex-col items-center justify-center py-6">
             <i data-lucide="loader-2" class="w-8 h-8 text-blue-600 animate-spin mb-2"></i>
             <p id="loading-text" class="text-slate-600 font-medium">Membaca PDF...</p>
         </div>
 
-        <!-- Tombol Aksi Cetak -->
         <div id="action-area" class="hidden">
             <div class="flex flex-col gap-3">
-                <!-- Tombol Utama Direct Print -->
                 <button onclick="startDirectPrint()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg text-lg">
                     <i data-lucide="printer" class="w-6 h-6"></i>
                     Cetak Langsung Sekarang!
                 </button>
                 
-                <!-- Tombol Fallback -->
                 <div class="flex gap-3">
                     <button onclick="window.print()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 py-3 rounded-xl font-medium text-sm flex justify-center items-center gap-2">
                         <i data-lucide="layout-template" class="w-4 h-4"></i> Cetak via Sistem (Alternatif)
@@ -142,13 +134,11 @@
 
         // Cek dukungan Bluetooth dan Secure Context
         const warningBox = document.getElementById('bt-warning');
-        const warningText = document.getElementById('bt-warning-text');
         
         if (!navigator.bluetooth) {
             warningBox.classList.remove('hidden');
         } else if (!window.isSecureContext) {
             warningBox.classList.remove('hidden');
-            warningText.innerHTML = "<strong>Perhatian:</strong> Web Bluetooth memerlukan koneksi yang aman (HTTPS). Silakan upload aplikasi ini ke GitHub Pages atau hosting dengan SSL untuk dapat menggunakan Bluetooth.";
         }
 
         let btDevice = null;
@@ -250,7 +240,30 @@
             }
         }
 
-        // --- FUNGSI TEST PRINTER (FIXED PAPER FEED) ---
+        // --- MENGIRIM DATA KE PRINTER (Chunking) ---
+        // Delay diperbesar ke 30ms karena data bitmap TSPL sangat besar
+        async function sendDataToPrinterInChunks(data, progressCallback) {
+            const CHUNK_SIZE = 128; // Diperkecil agar lebih aman di BLE
+            for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+                const chunk = data.slice(i, i + CHUNK_SIZE);
+                try {
+                    await btCharacteristic.writeValue(chunk);
+                } catch (e) {
+                    console.warn("Retrying chunk...", e);
+                    await new Promise(r => setTimeout(r, 50));
+                    await btCharacteristic.writeValue(chunk); // Retry 1x
+                }
+                
+                if (progressCallback && i % (CHUNK_SIZE * 10) === 0) {
+                    progressCallback(i / data.length);
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 30));
+            }
+            if(progressCallback) progressCallback(1);
+        }
+
+        // --- FUNGSI TEST PRINTER MENGGUNAKAN TSPL ---
         async function testPrinter() {
             if (!btCharacteristic) {
                 alert("Printer belum terhubung!");
@@ -258,30 +271,25 @@
             }
 
             try {
-                // 1. Perintah Setup
-                // 0x1B 0x40 = Initialize printer
-                // 0x1B 0x61 0x01 = Align center
-                const initCmd = new Uint8Array([0x1B, 0x40, 0x1B, 0x61, 0x01]);
+                // Perintah TSPL Dasar
+                // SIZE 100 mm, 150 mm (Ukuran Kertas)
+                // GAP 2 mm, 0 (Jarak antar stiker)
+                // CLS (Clear buffer)
+                // TEXT (Cetak teks)
+                // PRINT 1 (Cetak 1 copy)
+                let tsplCmd = "SIZE 100 mm,150 mm\r\n";
+                tsplCmd += "GAP 2 mm,0\r\n";
+                tsplCmd += "DIRECTION 1\r\n";
+                tsplCmd += "CLS\r\n";
+                tsplCmd += "TEXT 50,50,\"4\",0,1,1,\"=== TEST KONEKSI PRINTER ===\"\r\n";
+                tsplCmd += "TEXT 50,150,\"3\",0,1,1,\"Koneksi Bluetooth Berhasil!\"\r\n";
+                tsplCmd += "TEXT 50,200,\"3\",0,1,1,\"TSPL Command aktif.\"\r\n";
+                tsplCmd += "PRINT 1\r\n";
                 
-                // 2. Teks (Harus diakhiri dengan Line Feed \n agar buffer teks jalan)
-                const text = "=== TEST KONEKSI PRINTER ===\nBluetooth Terhubung dengan Baik!\nAplikasi Web Print Label Siap.\n";
                 const encoder = new TextEncoder();
-                const textBytes = encoder.encode(text);
-                
-                // 3. Perintah Keluarkan Kertas (SANGAT PENTING UNTUK LABEL THERMAL)
-                // 0x0A = Line Feed (Maju 1 baris)
-                // 0x0C = Form Feed (Pergi ke celah/gap label berikutnya)
-                // 0x1B 0x64 0x05 = Print and feed 5 lines (Cadangan jika Form Feed diabaikan)
-                const feedCmd = new Uint8Array([0x0A, 0x0A, 0x1B, 0x64, 0x05, 0x0C]);
-                
-                // Gabungkan semua perintah
-                const buffer = new Uint8Array(initCmd.length + textBytes.length + feedCmd.length);
-                buffer.set(initCmd, 0);
-                buffer.set(textBytes, initCmd.length);
-                buffer.set(feedCmd, initCmd.length + textBytes.length);
+                const buffer = encoder.encode(tsplCmd);
 
-                // Kirim
-                await sendDataToPrinterInChunks(buffer, () => {});
+                await sendDataToPrinterInChunks(buffer, null);
                 
             } catch (error) {
                 console.error("Test print gagal:", error);
@@ -289,7 +297,7 @@
             }
         }
 
-        // --- ALGORITMA DIRECT PRINT ESC/POS (UNTUK PDF) ---
+        // --- ALGORITMA DIRECT PRINT MENGGUNAKAN TSPL ---
         async function startDirectPrint() {
             if (!btCharacteristic) {
                 alert("Sambungkan ke Printer Bluetooth terlebih dahulu dengan tombol di atas!");
@@ -305,8 +313,8 @@
             
             try {
                 for (let i = 0; i < canvases.length; i++) {
-                    const escposData = generateESCPOSData(canvases[i]);
-                    await sendDataToPrinterInChunks(escposData, (progress) => {
+                    const tsplData = generateTSPLBitmap(canvases[i]);
+                    await sendDataToPrinterInChunks(tsplData, (progress) => {
                         const totalProgress = ((i + progress) / canvases.length) * 100;
                         progressBar.style.width = totalProgress + '%';
                         progressText.innerText = `Mencetak Label ${i+1}/${canvases.length} (${Math.round(totalProgress)}%)`;
@@ -323,62 +331,61 @@
             }
         }
 
-        function generateESCPOSData(canvas) {
+        // Mengubah Canvas Gambar menjadi Bahasa TSPL (Taiwan Semiconductor Printing Language)
+        function generateTSPLBitmap(canvas) {
             const width = canvas.width;
             const height = canvas.height;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const imgData = ctx.getImageData(0, 0, width, height).data;
 
-            const bytesWidth = Math.ceil(width / 8);
-            const buffer = [];
+            // Lebar dalam byte (1 bit = 1 pixel hitam/putih)
+            const bytesWidth = Math.ceil(width / 8); 
 
-            buffer.push(0x1B, 0x40); 
-            
-            // GS v 0 (Cetak Gambar Bitmap)
-            buffer.push(0x1D, 0x76, 0x30, 0x00);
-            buffer.push(bytesWidth & 0xFF, (bytesWidth >> 8) & 0xFF);
-            buffer.push(height & 0xFF, (height >> 8) & 0xFF);
+            // 1. HEADER TSPL
+            let headerStr = "SIZE 100 mm,150 mm\r\n";
+            headerStr += "GAP 2 mm,0\r\n";
+            headerStr += "DIRECTION 1\r\n";
+            headerStr += "CLS\r\n";
+            // Command BITMAP: BITMAP X, Y, width_bytes, height, mode, bitmap_data
+            headerStr += `BITMAP 0,0,${bytesWidth},${height},0,`;
 
-            // Binarization (Mengubah pixel warna jadi bit 1/0)
+            const encoder = new TextEncoder();
+            const headerBytes = encoder.encode(headerStr);
+
+            // 2. DATA BITMAP
+            const bitmapData = new Uint8Array(bytesWidth * height);
+            let byteIndex = 0;
+
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < bytesWidth * 8; x++) {
-                    if (x % 8 === 0) buffer.push(0); 
-
                     if (x < width) {
                         const i = (y * width + x) * 4;
+                        // Rumus Luminance untuk Grayscale
                         const lum = (0.299 * imgData[i]) + (0.587 * imgData[i+1]) + (0.114 * imgData[i+2]);
-                        const isAlphaTansparent = imgData[i+3] < 128;
+                        const isTransparent = imgData[i+3] < 128;
                         
-                        if (lum < 128 && !isAlphaTansparent) {
-                            buffer[buffer.length - 1] |= (1 << (7 - (x % 8)));
+                        // TSPL: Bit 0 = Putih, Bit 1 = Hitam (Berlawanan dengan binarization normal, biasanya printer thermal minta bit 0 untuk hitam, tapi tergantung mode. Kita pakai mode 0 (0=putih, 1=hitam))
+                        if (lum < 128 && !isTransparent) {
+                            // Set bit yang bersesuaian menjadi 1 (Hitam)
+                            const bitPosition = 7 - (x % 8);
+                            bitmapData[byteIndex] |= (1 << bitPosition);
                         }
                     }
+                    if (x % 8 === 7) byteIndex++;
                 }
             }
 
-            // PERINTAH KELUARKAN KERTAS RESI SETELAH CETAK GAMBAR
-            buffer.push(0x0A); // Line feed (wajib dipanggil setelah gambar)
-            buffer.push(0x0C); // Form feed (Cari gap/celah label)
-            buffer.push(0x1B, 0x64, 0x03); // Feed 3 lines sebagai cadangan
+            // 3. FOOTER TSPL
+            const footerStr = "\r\nPRINT 1\r\n";
+            const footerBytes = encoder.encode(footerStr);
 
-            return new Uint8Array(buffer);
-        }
+            // Gabungkan Header, Data Bitmap, dan Footer
+            const finalBuffer = new Uint8Array(headerBytes.length + bitmapData.length + footerBytes.length);
+            finalBuffer.set(headerBytes, 0);
+            finalBuffer.set(bitmapData, headerBytes.length);
+            finalBuffer.set(footerBytes, headerBytes.length + bitmapData.length);
 
-        // Chunking data dengan Jeda (Delay diperbesar jadi 20ms agar buffer printer murah tidak penuh)
-        async function sendDataToPrinterInChunks(data, progressCallback) {
-            const CHUNK_SIZE = 256; 
-            for (let i = 0; i < data.length; i += CHUNK_SIZE) {
-                const chunk = data.slice(i, i + CHUNK_SIZE);
-                await btCharacteristic.writeValue(chunk);
-                
-                if (i % (CHUNK_SIZE * 5) === 0) {
-                    progressCallback(i / data.length);
-                }
-                
-                // Jeda 20ms (PENTING: Jangan dihapus agar kertas printer benar-benar bergerak)
-                await new Promise(resolve => setTimeout(resolve, 20));
-            }
-            progressCallback(1);
+            return finalBuffer;
         }
 
         // ==========================================
@@ -424,6 +431,8 @@
         async function renderPageForDirectPrint(pdf, pageNumber) {
             const page = await pdf.getPage(pageNumber);
             
+            // Resolusi printer label 100mm biasanya adalah 203 DPI (8 dots per mm).
+            // Lebar 100mm = 800 dots.
             const viewportTemp = page.getViewport({ scale: 1 });
             const requiredScale = 800 / viewportTemp.width; 
             const viewport = page.getViewport({ scale: requiredScale });
