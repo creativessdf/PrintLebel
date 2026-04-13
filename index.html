@@ -134,7 +134,7 @@
         </div>
     </div>
 
-    <!-- Container Tersembunyi untuk Rasterizer (Ukuran pas untuk printer) -->
+    <!-- Container Tersembunyi untuk Rasterizer -->
     <div id="print-section"></div>
 
     <script>
@@ -151,16 +151,12 @@
             warningText.innerHTML = "<strong>Perhatian:</strong> Web Bluetooth memerlukan koneksi yang aman (HTTPS). Silakan upload aplikasi ini ke GitHub Pages atau hosting dengan SSL untuk dapat menggunakan Bluetooth.";
         }
 
-        // ==========================================
-        // BLUETOOTH & DIRECT PRINT LOGIC
-        // ==========================================
         let btDevice = null;
         let btCharacteristic = null;
 
         async function connectBluetooth() {
             try {
                 updateBluetoothUI('connecting');
-                // Filter umum untuk printer thermal
                 const device = await navigator.bluetooth.requestDevice({
                     acceptAllDevices: true,
                     optionalServices: [
@@ -176,7 +172,6 @@
                 const server = await device.gatt.connect();
                 const services = await server.getPrimaryServices();
                 
-                // Cari service dan characteristic yang bisa ditulisi (write)
                 for (const service of services) {
                     const characteristics = await service.getCharacteristics();
                     for (const char of characteristics) {
@@ -197,9 +192,8 @@
                 console.error(error);
                 updateBluetoothUI('disconnected');
                 
-                // Menangani error Security khusus untuk lingkungan iframe atau non-HTTPS
                 if (error.name === 'SecurityError') {
-                    alert("Akses Bluetooth Ditolak!\n\nHal ini biasanya terjadi karena Anda membuka aplikasi ini di dalam jendela preview, iframe, atau tanpa koneksi aman (HTTPS). \n\nSolusi: Silakan simpan file HTML ini dan upload ke GitHub Pages Anda, lalu buka tautan GitHub Pages tersebut di tab baru Chrome Android.");
+                    alert("Akses Bluetooth Ditolak!\nBuka dari HTTPS (seperti GitHub Pages) agar Bluetooth diizinkan browser.");
                 } else if (error.name !== 'NotFoundError') {
                     alert("Gagal menyambung: " + error.message);
                 }
@@ -238,7 +232,6 @@
                 icon.classList.replace('text-slate-500', 'text-green-600');
                 icon.classList.remove('animate-pulse');
                 
-                // Toggle Buttons
                 connectBtn.classList.replace('flex', 'hidden');
                 disconnectBtn.classList.replace('hidden', 'flex');
                 testBtn.classList.replace('hidden', 'flex');
@@ -251,14 +244,13 @@
                 icon.classList.replace('text-green-600', 'text-slate-500');
                 icon.classList.remove('animate-pulse');
                 
-                // Toggle Buttons
                 connectBtn.classList.replace('hidden', 'flex');
                 disconnectBtn.classList.replace('flex', 'hidden');
                 testBtn.classList.replace('flex', 'hidden');
             }
         }
 
-        // --- FUNGSI TEST PRINTER ---
+        // --- FUNGSI TEST PRINTER (FIXED PAPER FEED) ---
         async function testPrinter() {
             if (!btCharacteristic) {
                 alert("Printer belum terhubung!");
@@ -266,24 +258,29 @@
             }
 
             try {
-                // Teks yang akan di print
-                const text = "\n=== TEST KONEKSI PRINTER ===\nKoneksi Bluetooth Berhasil!\nSistem Cetak Resi Siap Digunakan.\n\n\n\n";
-                
-                // Convert text ke format byte/ASCII
-                const encoder = new TextEncoder();
-                const textBytes = encoder.encode(text);
-                
-                // Siapkan command ESC/POS
+                // 1. Perintah Setup
                 // 0x1B 0x40 = Initialize printer
                 // 0x1B 0x61 0x01 = Align center
                 const initCmd = new Uint8Array([0x1B, 0x40, 0x1B, 0x61, 0x01]);
                 
-                // Gabungkan byte perintah dan byte teks
-                const buffer = new Uint8Array(initCmd.length + textBytes.length);
+                // 2. Teks (Harus diakhiri dengan Line Feed \n agar buffer teks jalan)
+                const text = "=== TEST KONEKSI PRINTER ===\nBluetooth Terhubung dengan Baik!\nAplikasi Web Print Label Siap.\n";
+                const encoder = new TextEncoder();
+                const textBytes = encoder.encode(text);
+                
+                // 3. Perintah Keluarkan Kertas (SANGAT PENTING UNTUK LABEL THERMAL)
+                // 0x0A = Line Feed (Maju 1 baris)
+                // 0x0C = Form Feed (Pergi ke celah/gap label berikutnya)
+                // 0x1B 0x64 0x05 = Print and feed 5 lines (Cadangan jika Form Feed diabaikan)
+                const feedCmd = new Uint8Array([0x0A, 0x0A, 0x1B, 0x64, 0x05, 0x0C]);
+                
+                // Gabungkan semua perintah
+                const buffer = new Uint8Array(initCmd.length + textBytes.length + feedCmd.length);
                 buffer.set(initCmd, 0);
                 buffer.set(textBytes, initCmd.length);
+                buffer.set(feedCmd, initCmd.length + textBytes.length);
 
-                // Kirim ke printer (Chunking untuk aman)
+                // Kirim
                 await sendDataToPrinterInChunks(buffer, () => {});
                 
             } catch (error) {
@@ -326,7 +323,6 @@
             }
         }
 
-        // Mengubah Canvas Gambar menjadi Bahasa Mesin Printer (ESC/POS Raster)
         function generateESCPOSData(canvas) {
             const width = canvas.width;
             const height = canvas.height;
@@ -336,15 +332,14 @@
             const bytesWidth = Math.ceil(width / 8);
             const buffer = [];
 
-            // Inisialisasi printer
             buffer.push(0x1B, 0x40); 
             
-            // Perintah GS v 0 (Cetak Gambar Bitmap)
+            // GS v 0 (Cetak Gambar Bitmap)
             buffer.push(0x1D, 0x76, 0x30, 0x00);
             buffer.push(bytesWidth & 0xFF, (bytesWidth >> 8) & 0xFF);
             buffer.push(height & 0xFF, (height >> 8) & 0xFF);
 
-            // Algoritma Binarization (Mengubah pixel warna jadi bit 1/0)
+            // Binarization (Mengubah pixel warna jadi bit 1/0)
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < bytesWidth * 8; x++) {
                     if (x % 8 === 0) buffer.push(0); 
@@ -361,13 +356,15 @@
                 }
             }
 
-            buffer.push(0x0C); 
-            buffer.push(0x1B, 0x64, 0x03); 
+            // PERINTAH KELUARKAN KERTAS RESI SETELAH CETAK GAMBAR
+            buffer.push(0x0A); // Line feed (wajib dipanggil setelah gambar)
+            buffer.push(0x0C); // Form feed (Cari gap/celah label)
+            buffer.push(0x1B, 0x64, 0x03); // Feed 3 lines sebagai cadangan
 
             return new Uint8Array(buffer);
         }
 
-        // BLE membatasi ukuran data, kita kirim sepotong demi sepotong
+        // Chunking data dengan Jeda (Delay diperbesar jadi 20ms agar buffer printer murah tidak penuh)
         async function sendDataToPrinterInChunks(data, progressCallback) {
             const CHUNK_SIZE = 256; 
             for (let i = 0; i < data.length; i += CHUNK_SIZE) {
@@ -378,8 +375,8 @@
                     progressCallback(i / data.length);
                 }
                 
-                // Jeda 5ms agar buffer printer murah tidak penuh/error
-                await new Promise(resolve => setTimeout(resolve, 5));
+                // Jeda 20ms (PENTING: Jangan dihapus agar kertas printer benar-benar bergerak)
+                await new Promise(resolve => setTimeout(resolve, 20));
             }
             progressCallback(1);
         }
