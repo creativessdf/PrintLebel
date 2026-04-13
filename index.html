@@ -13,11 +13,6 @@
 
     <style>
         #print-section { display: none; }
-        @keyframes pulse-fast {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .animate-pulse-fast { animation: pulse-fast 1s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         
         /* Hover effect untuk preview gambar */
         .preview-item {
@@ -27,13 +22,13 @@
         .preview-item:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-            border-color: #3b82f6; /* Tailwind blue-500 */
+            border-color: #3b82f6; 
         }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 font-sans relative">
 
-    <!-- Modal Pratinjau Layar Penuh (Baru) -->
+    <!-- Modal Pratinjau Layar Penuh -->
     <div id="image-modal" class="hidden fixed inset-0 bg-slate-900/90 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" onclick="closeModal()">
         <div class="relative max-w-full max-h-full flex flex-col items-center">
             <button onclick="closeModal()" class="absolute -top-10 right-0 text-white hover:text-red-400 transition-colors">
@@ -44,25 +39,15 @@
         </div>
     </div>
 
-    <!-- Overlay Loading Direct Print -->
-    <div id="printing-overlay" class="hidden fixed inset-0 bg-slate-900/90 z-50 flex flex-col items-center justify-center text-white backdrop-blur-sm">
-        <i data-lucide="printer" class="w-16 h-16 animate-pulse-fast mb-4 text-blue-400"></i>
-        <h2 class="text-2xl font-bold mb-2">Sedang Mencetak...</h2>
-        <p class="text-slate-300 text-center max-w-sm mb-4">Mengirim data TSPL ke Printer Bluetooth. <br>Mohon tunggu proses selesai.</p>
-        <div class="w-64 bg-slate-700 rounded-full h-3">
-            <div id="print-progress-bar" class="bg-blue-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
-        </div>
-        <p id="print-progress-text" class="mt-2 text-sm text-blue-200">0%</p>
-    </div>
-
+    <!-- UI UTAMA -->
     <div id="app-ui" class="max-w-3xl mx-auto p-4 md:p-8">
         
         <header class="text-center mb-6">
             <div class="inline-flex items-center justify-center p-3 bg-blue-100 text-blue-600 rounded-full mb-4">
                 <i data-lucide="zap" class="w-8 h-8"></i>
             </div>
-            <h1 class="text-3xl font-bold text-slate-900 mb-2">Direct Print Resi (TSPL)</h1>
-            <p class="text-slate-600">Terhubung langsung ke Printer Label Thermal.</p>
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">Direct Print Resi Cepat</h1>
+            <p class="text-slate-600">Cetak tanpa loading layar, langsung kirim ke Printer Thermal.</p>
         </header>
 
         <!-- PANEL BLUETOOTH -->
@@ -72,7 +57,7 @@
                     <i data-lucide="bluetooth" id="bt-icon" class="text-slate-500 w-6 h-6 transition-colors"></i>
                 </div>
                 <div>
-                    <h3 class="font-bold text-slate-800">Koneksi Direct Bluetooth</h3>
+                    <h3 class="font-bold text-slate-800">Koneksi Bluetooth</h3>
                     <p class="text-sm text-slate-500">
                         Status: <span id="bt-status" class="text-slate-500 font-medium">Belum Terhubung</span>
                     </p>
@@ -115,7 +100,7 @@
             
             <div id="file-list-container" class="hidden mt-4">
                 <div class="flex justify-between items-center mb-2 border-b pb-2">
-                    <h4 class="font-semibold text-slate-700">Daftar Label (Klik gambar untuk perbesar):</h4>
+                    <h4 class="font-semibold text-slate-700">Daftar Label (Klik untuk perbesar):</h4>
                     <span id="total-pages-display" class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-bold">0 Halaman</span>
                 </div>
                 <div id="screen-preview" class="flex gap-4 overflow-x-auto pb-4 pt-2">
@@ -131,7 +116,8 @@
 
         <div id="action-area" class="hidden">
             <div class="flex flex-col gap-3">
-                <button onclick="startDirectPrint()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg text-lg">
+                <!-- Tombol Utama Direct Print -->
+                <button id="btn-direct-print" onclick="startDirectPrint()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg text-lg">
                     <i data-lucide="printer" class="w-6 h-6"></i>
                     Cetak Langsung Sekarang!
                 </button>
@@ -161,7 +147,7 @@
                 const dataUrl = canvas.toDataURL('image/png');
                 document.getElementById('modal-image').src = dataUrl;
                 document.getElementById('image-modal').classList.remove('hidden');
-                document.body.style.overflow = 'hidden'; // Mencegah scroll di background
+                document.body.style.overflow = 'hidden'; 
             }
         }
 
@@ -170,9 +156,8 @@
             document.body.style.overflow = 'auto';
         }
 
-        // Cek dukungan Bluetooth dan Secure Context
+        // Cek dukungan Bluetooth
         const warningBox = document.getElementById('bt-warning');
-        
         if (!navigator.bluetooth) {
             warningBox.classList.remove('hidden');
         } else if (!window.isSecureContext) {
@@ -188,9 +173,9 @@
                 const device = await navigator.bluetooth.requestDevice({
                     acceptAllDevices: true,
                     optionalServices: [
-                        '000018f0-0000-1000-8000-00805f9b34fb', // Standard Printer Service
-                        '0000ffe0-0000-1000-8000-00805f9b34fb', // Standard Serial BLE
-                        'e7810a71-73ae-499d-8c15-faa9aef0c3f2'  // Generic Serial
+                        '000018f0-0000-1000-8000-00805f9b34fb', 
+                        '0000ffe0-0000-1000-8000-00805f9b34fb', 
+                        'e7810a71-73ae-499d-8c15-faa9aef0c3f2'  
                     ]
                 });
 
@@ -211,20 +196,14 @@
                     if (btCharacteristic) break;
                 }
 
-                if (!btCharacteristic) {
-                    throw new Error("Tidak menemukan port write pada perangkat ini.");
-                }
+                if (!btCharacteristic) throw new Error("Tidak menemukan port write pada perangkat ini.");
 
                 updateBluetoothUI('connected', device.name);
             } catch (error) {
                 console.error(error);
                 updateBluetoothUI('disconnected');
-                
-                if (error.name === 'SecurityError') {
-                    alert("Akses Bluetooth Ditolak!\nBuka dari HTTPS (seperti GitHub Pages) agar Bluetooth diizinkan browser.");
-                } else if (error.name !== 'NotFoundError') {
-                    alert("Gagal menyambung: " + error.message);
-                }
+                if (error.name === 'SecurityError') alert("Akses Bluetooth Ditolak!\nBuka dari HTTPS agar diizinkan browser.");
+                else if (error.name !== 'NotFoundError') alert("Gagal menyambung: " + error.message);
             }
         }
 
@@ -243,7 +222,6 @@
             const nameEl = document.getElementById('bt-device-name');
             const iconBg = document.getElementById('bt-icon-bg');
             const icon = document.getElementById('bt-icon');
-            
             const connectBtn = document.getElementById('bt-connect-btn');
             const disconnectBtn = document.getElementById('bt-disconnect-btn');
             const testBtn = document.getElementById('bt-test-btn');
@@ -255,7 +233,6 @@
                 status.innerHTML = '<span class="text-green-600 font-bold">Siap Cetak!</span>';
                 nameEl.textContent = name;
                 nameEl.classList.remove('hidden');
-                
                 iconBg.classList.replace('bg-slate-100', 'bg-green-100');
                 icon.classList.replace('text-slate-500', 'text-green-600');
                 icon.classList.remove('animate-pulse');
@@ -263,11 +240,9 @@
                 connectBtn.classList.replace('flex', 'hidden');
                 disconnectBtn.classList.replace('hidden', 'flex');
                 testBtn.classList.replace('hidden', 'flex');
-                
             } else {
                 status.innerHTML = '<span class="text-slate-500">Belum Terhubung</span>';
                 nameEl.classList.add('hidden');
-                
                 iconBg.classList.replace('bg-green-100', 'bg-slate-100');
                 icon.classList.replace('text-green-600', 'text-slate-500');
                 icon.classList.remove('animate-pulse');
@@ -278,91 +253,78 @@
             }
         }
 
-        // Chunking untuk pengiriman data via BLE
-        async function sendDataToPrinterInChunks(data, progressCallback) {
-            const CHUNK_SIZE = 128; 
+        // --- PENGIRIMAN DATA SUPER CEPAT (Optimasi BLE) ---
+        async function sendDataToPrinterInChunks(data) {
+            // Ukuran paket (chunk) diperbesar menjadi 256 byte agar transfer 2x lebih cepat
+            const CHUNK_SIZE = 256; 
             for (let i = 0; i < data.length; i += CHUNK_SIZE) {
                 const chunk = data.slice(i, i + CHUNK_SIZE);
                 try {
+                    // await secara otomatis menangani flow control, tidak butuh delay buatan
                     await btCharacteristic.writeValue(chunk);
                 } catch (e) {
                     console.warn("Retrying chunk...", e);
-                    await new Promise(r => setTimeout(r, 50));
+                    await new Promise(r => setTimeout(r, 20)); // Delay sedikit hanya jika gagal/buffer penuh
                     await btCharacteristic.writeValue(chunk); 
                 }
-                
-                if (progressCallback && i % (CHUNK_SIZE * 10) === 0) {
-                    progressCallback(i / data.length);
-                }
-                
-                await new Promise(resolve => setTimeout(resolve, 30));
             }
-            if(progressCallback) progressCallback(1);
         }
 
-        // --- FUNGSI TEST PRINTER ---
         async function testPrinter() {
             if (!btCharacteristic) {
                 alert("Printer belum terhubung!");
                 return;
             }
-
             try {
-                let tsplCmd = "SIZE 100 mm,150 mm\r\n";
-                tsplCmd += "GAP 2 mm,0\r\n";
-                tsplCmd += "DIRECTION 1\r\n";
-                tsplCmd += "CLS\r\n";
+                let tsplCmd = "SIZE 100 mm,150 mm\r\nGAP 2 mm,0\r\nDIRECTION 1\r\nCLS\r\n";
                 tsplCmd += "TEXT 50,50,\"4\",0,1,1,\"=== TEST KONEKSI PRINTER ===\"\r\n";
-                tsplCmd += "TEXT 50,150,\"3\",0,1,1,\"Koneksi Bluetooth Berhasil!\"\r\n";
-                tsplCmd += "TEXT 50,200,\"3\",0,1,1,\"TSPL Command aktif.\"\r\n";
+                tsplCmd += "TEXT 50,150,\"3\",0,1,1,\"Koneksi Bluetooth Cepat Berhasil!\"\r\n";
                 tsplCmd += "PRINT 1\r\n";
                 
                 const encoder = new TextEncoder();
-                const buffer = encoder.encode(tsplCmd);
-
-                await sendDataToPrinterInChunks(buffer, null);
-                
+                await sendDataToPrinterInChunks(encoder.encode(tsplCmd));
             } catch (error) {
-                console.error("Test print gagal:", error);
                 alert("Gagal mengirim test print: " + error.message);
             }
         }
 
-        // --- ALGORITMA DIRECT PRINT MENGGUNAKAN TSPL ---
+        // --- ALGORITMA DIRECT PRINT CEPAT ---
         async function startDirectPrint() {
             if (!btCharacteristic) {
-                alert("Sambungkan ke Printer Bluetooth terlebih dahulu dengan tombol di atas!");
+                alert("Sambungkan ke Printer Bluetooth terlebih dahulu!");
                 return;
             }
 
             const canvases = document.getElementById('print-section').querySelectorAll('canvas');
             if (canvases.length === 0) return;
 
-            document.getElementById('printing-overlay').classList.remove('hidden');
-            const progressBar = document.getElementById('print-progress-bar');
-            const progressText = document.getElementById('print-progress-text');
-            
+            // Manipulasi Tombol Cetak agar terlihat sedang bekerja tanpa menghalangi layar
+            const btn = document.getElementById('btn-direct-print');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i> Mengirim Data...`;
+            btn.classList.replace('bg-blue-600', 'bg-blue-400');
+            btn.disabled = true;
+            lucide.createIcons({ root: btn });
+
             try {
                 for (let i = 0; i < canvases.length; i++) {
                     const tsplData = generateTSPLBitmap(canvases[i]);
-                    await sendDataToPrinterInChunks(tsplData, (progress) => {
-                        const totalProgress = ((i + progress) / canvases.length) * 100;
-                        progressBar.style.width = totalProgress + '%';
-                        progressText.innerText = `Mencetak Label ${i+1}/${canvases.length} (${Math.round(totalProgress)}%)`;
-                    });
+                    // Kirim data ke background secepat mungkin
+                    await sendDataToPrinterInChunks(tsplData);
                 }
             } catch (error) {
                 console.error(error);
                 alert("Terjadi kesalahan saat mencetak: " + error.message);
             } finally {
-                setTimeout(() => {
-                    document.getElementById('printing-overlay').classList.add('hidden');
-                    progressBar.style.width = '0%';
-                }, 1000);
+                // Kembalikan tombol seperti semula dengan instan
+                btn.innerHTML = originalContent;
+                btn.classList.replace('bg-blue-400', 'bg-blue-600');
+                btn.disabled = false;
+                lucide.createIcons({ root: btn });
             }
         }
 
-        // --- PERBAIKAN LOGIKA WARNA BACKGROUND TSPL ---
+        // --- PEMBENTUKAN BITMAP TSPL ---
         function generateTSPLBitmap(canvas) {
             const width = canvas.width;
             const height = canvas.height;
@@ -371,24 +333,14 @@
 
             const bytesWidth = Math.ceil(width / 8); 
 
-            let headerStr = "SIZE 100 mm,150 mm\r\n";
-            headerStr += "GAP 2 mm,0\r\n";
-            headerStr += "DIRECTION 1\r\n";
-            headerStr += "CLS\r\n";
-            headerStr += `BITMAP 0,0,${bytesWidth},${height},0,`;
-
+            let headerStr = `SIZE 100 mm,150 mm\r\nGAP 2 mm,0\r\nDIRECTION 1\r\nCLS\r\nBITMAP 0,0,${bytesWidth},${height},0,`;
             const encoder = new TextEncoder();
             const headerBytes = encoder.encode(headerStr);
 
             const bitmapData = new Uint8Array(bytesWidth * height);
-            
-            // PENTING: Inisialisasi semua byte menjadi 0xFF (Putih semua)
-            // Karena kita pakai mode 0, biasanya bit 0 = hitam, bit 1 = putih (terbalik).
-            // Atau sebaliknya. Kita coba balik logikanya (invert) di sini.
-            bitmapData.fill(0x00); // Set semua ke 0 terlebih dahulu
+            bitmapData.fill(0x00); 
 
             let byteIndex = 0;
-
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < bytesWidth * 8; x++) {
                     if (x < width) {
@@ -396,28 +348,19 @@
                         const lum = (0.299 * imgData[i]) + (0.587 * imgData[i+1]) + (0.114 * imgData[i+2]);
                         const isTransparent = imgData[i+3] < 128;
                         
-                        // LOGIKA INVERT (DIBALIK):
-                        // Sebelumnya: Gelap (lum < 128) -> Set bit jadi 1. (Hasilnya: background hitam, tulisan putih).
-                        // Sekarang: Jika warna terang (PUTIH/Abu muda) -> Set bit jadi 1.
-                        // Jika gelap (HITAM) -> Biarkan bit jadi 0.
-                        // Hal ini karena printer TSPL umumnya membaca bit 0 sebagai TINTA(hitam), dan bit 1 sebagai KOSONG(putih).
+                        // Logika Invert: Terang/Putih -> Bit 1
                         if (lum >= 128 || isTransparent) {
-                            const bitPosition = 7 - (x % 8);
-                            bitmapData[byteIndex] |= (1 << bitPosition);
+                            bitmapData[byteIndex] |= (1 << (7 - (x % 8)));
                         }
                     } else {
-                        // Padding (area kosong di luar lebar asli gambar)
-                        // Atur ke putih (bit 1)
-                        const bitPosition = 7 - (x % 8);
-                        bitmapData[byteIndex] |= (1 << bitPosition);
+                        // Padding Putih
+                        bitmapData[byteIndex] |= (1 << (7 - (x % 8)));
                     }
-
                     if (x % 8 === 7) byteIndex++;
                 }
             }
 
-            const footerStr = "\r\nPRINT 1\r\n";
-            const footerBytes = encoder.encode(footerStr);
+            const footerBytes = encoder.encode("\r\nPRINT 1\r\n");
 
             const finalBuffer = new Uint8Array(headerBytes.length + bitmapData.length + footerBytes.length);
             finalBuffer.set(headerBytes, 0);
@@ -475,7 +418,6 @@
             const viewport = page.getViewport({ scale: requiredScale });
 
             const printCanvas = document.createElement('canvas');
-            // Beri ID unik agar bisa dipanggil oleh modal
             const canvasId = `print-canvas-${totalPagesRendered}`;
             printCanvas.id = canvasId;
             printCanvas.width = viewport.width; 
@@ -488,11 +430,8 @@
             await page.render({ canvasContext: printCtx, viewport: viewport }).promise;
             document.getElementById('print-section').appendChild(printCanvas);
 
-            // Canvas untuk Preview UI
             const previewWrapper = document.createElement('div');
             previewWrapper.className = "relative shrink-0 preview-item group";
-            
-            // Tambahkan event onclick untuk membuka modal
             previewWrapper.onclick = () => openModal(canvasId);
 
             const previewCanvas = document.createElement('canvas');
@@ -501,7 +440,6 @@
             previewCanvas.className = "w-32 h-auto object-contain border border-slate-300 bg-white rounded";
             previewCanvas.getContext('2d').drawImage(printCanvas, 0, 0);
             
-            // Ikon kaca pembesar (muncul saat di-hover)
             const zoomIcon = document.createElement('div');
             zoomIcon.className = "absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center rounded transition-opacity";
             zoomIcon.innerHTML = `<i data-lucide="zoom-in" class="text-white w-8 h-8"></i>`;
