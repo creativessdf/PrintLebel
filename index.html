@@ -50,7 +50,7 @@
     <div id="printing-overlay" class="hidden fixed inset-0 bg-slate-900/90 z-50 flex flex-col items-center justify-center text-white backdrop-blur-sm">
         <i data-lucide="printer" class="w-16 h-16 animate-pulse-fast mb-4 text-blue-400"></i>
         <h2 class="text-2xl font-bold mb-2">Sedang Mencetak...</h2>
-        <p class="text-slate-300 text-center max-w-sm mb-4">Mengirim data ke Printer Bluetooth. <br>Harap tunggu agar memori printer tidak error.</p>
+        <p class="text-slate-300 text-center max-w-sm mb-4">Mengirim data ke Printer Bluetooth. <br>Proses transfer dengan kecepatan 10ms.</p>
         <div class="w-64 bg-slate-700 rounded-full h-3">
             <div id="print-progress-bar" class="bg-blue-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
         </div>
@@ -65,7 +65,7 @@
                 <i data-lucide="zap" class="w-8 h-8"></i>
             </div>
             <h1 class="text-3xl font-bold text-slate-900 mb-2">Direct Print Resi (TSPL)</h1>
-            <p class="text-slate-600">Aplikasi Cetak Label Bluetooth Super Stabil.</p>
+            <p class="text-slate-600">Aplikasi Cetak Label Bluetooth (Optimasi 10ms).</p>
         </header>
 
         <!-- PANEL BLUETOOTH -->
@@ -283,14 +283,12 @@
             }
         }
 
-        // --- PENGIRIMAN DATA DENGAN PROGRESS CALLBACK (JEDA AMAN DIPERBAIKI) ---
+        // --- PENGIRIMAN DATA DENGAN JEDA 10ms ---
         async function sendDataToPrinterInChunks(data, progressCallback) {
-            // Ukuran aman untuk printer murah agar tidak error (100 byte per kiriman)
             const CHUNK_SIZE = 100; 
             for (let i = 0; i < data.length; i += CHUNK_SIZE) {
                 const chunk = data.slice(i, i + CHUNK_SIZE);
                 try {
-                    // Coba metode write yang tersedia
                     if (btCharacteristic.properties.writeWithoutResponse) {
                         await btCharacteristic.writeValueWithoutResponse(chunk);
                     } else {
@@ -298,7 +296,6 @@
                     }
                 } catch (e) {
                     console.warn("Retrying chunk...", e);
-                    // Jika gagal, beri jeda lama lalu coba lagi
                     await new Promise(r => setTimeout(r, 50)); 
                     if (btCharacteristic.properties.writeWithoutResponse) {
                         await btCharacteristic.writeValueWithoutResponse(chunk);
@@ -307,10 +304,9 @@
                     }
                 }
                 
-                // JEDA WAJIB 30ms. Jangan pernah dihapus agar memori printer sanggup memproses data.
-                await new Promise(resolve => setTimeout(resolve, 30));
+                // JEDA OPTIMAL (10ms) UNTUK KECEPATAN & KESTABILAN
+                await new Promise(resolve => setTimeout(resolve, 10));
 
-                // Panggil callback progress untuk mengupdate loading bar
                 if (progressCallback && i % (CHUNK_SIZE * 5) === 0) {
                     progressCallback(i / data.length);
                 }
@@ -327,7 +323,7 @@
                 let tsplCmd = "SIZE 100 mm,150 mm\r\nGAP 2 mm,0\r\nDIRECTION 1\r\nCLS\r\n";
                 tsplCmd += "TEXT 50,50,\"4\",0,1,1,\"=== TEST KONEKSI PRINTER ===\"\r\n";
                 tsplCmd += "TEXT 50,150,\"3\",0,1,1,\"Koneksi Bluetooth Berhasil!\"\r\n";
-                tsplCmd += "TEXT 50,200,\"2\",0,1,1,\"Printer merespons dengan normal.\"\r\n";
+                tsplCmd += "TEXT 50,200,\"2\",0,1,1,\"Kecepatan Transfer: 10ms.\"\r\n";
                 tsplCmd += "PRINT 1\r\n";
                 
                 const encoder = new TextEncoder();
@@ -347,7 +343,6 @@
             const canvases = document.getElementById('print-section').querySelectorAll('canvas');
             if (canvases.length === 0) return;
 
-            // TAMPILKAN LAYAR LOADING OVERLAY
             document.getElementById('printing-overlay').classList.remove('hidden');
             const progressBar = document.getElementById('print-progress-bar');
             const progressText = document.getElementById('print-progress-text');
@@ -361,14 +356,13 @@
                         progressText.innerText = `Mencetak Label ${i+1}/${canvases.length} (${Math.round(totalProgress)}%)`;
                     });
                     
-                    // Jeda ekstra 1 detik antar label agar mesin printer menarik kertas dengan sempurna
+                    // Jeda ekstra 1 detik antar label untuk amannya.
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             } catch (error) {
                 console.error(error);
                 alert("Terjadi kesalahan saat mencetak: " + error.message);
             } finally {
-                // Sembunyikan layar loading setelah selesai
                 setTimeout(() => {
                     document.getElementById('printing-overlay').classList.add('hidden');
                     progressBar.style.width = '0%';
@@ -391,15 +385,12 @@
 
             const bitmapData = new Uint8Array(bytesWidth * height);
             
-            // Cek apakah opsi Perbaikan Warna di centang
             const isReverseChecked = document.getElementById('fix-bg-checkbox').checked;
             
-            // Jika memori printer mendeteksi 0 sebagai Hitam, kita penuhi array dengan 0 (hitam) 
-            // lalu beri angka 1 (putih) di area yang terang.
             if (isReverseChecked) {
-                bitmapData.fill(0x00); // 0 = Hitam (Background awal Hitam)
+                bitmapData.fill(0x00); 
             } else {
-                bitmapData.fill(0x00); // Mode normal (Background awal Putih)
+                bitmapData.fill(0x00); 
             }
             
             let byteIndex = 0;
@@ -411,20 +402,15 @@
                         const isTransparent = imgData[i+3] < 128;
                         
                         if (isReverseChecked) {
-                            // MODE INVERT (Agar Latar Putih, Tulisan Hitam di printer tertentu)
-                            // Jika warna aslinya Terang/Putih, kita set bit jadi 1.
                             if (lum >= 128 || isTransparent) {
                                 bitmapData[byteIndex] |= (1 << (7 - (x % 8)));
                             }
                         } else {
-                            // MODE NORMAL (Agar Latar Putih, Tulisan Hitam di printer normal)
-                            // Jika warna aslinya Gelap/Hitam, kita set bit jadi 1.
                             if (lum < 128 && !isTransparent) {
                                 bitmapData[byteIndex] |= (1 << (7 - (x % 8)));
                             }
                         }
                     } else {
-                        // Area padding/tepi kosong, pastikan warnanya Putih
                         if (isReverseChecked) {
                             bitmapData[byteIndex] |= (1 << (7 - (x % 8)));
                         }
